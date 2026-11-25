@@ -38,20 +38,9 @@ jobs:
           path: ~/.android/debug.keystore
           key: firetv-fel-debug-keystore
 
-      # Optional keys from this fork's own repository secrets (Settings > Secrets and variables > Actions).
-      # Without them the app builds as before, only without the logins they enable.
       - name: Prepare local properties
-        env:
-          TRAKT_CLIENT_ID: ${{ secrets.TRAKT_CLIENT_ID }}
-          TRAKT_CLIENT_SECRET: ${{ secrets.TRAKT_CLIENT_SECRET }}
         run: |
           touch local.properties local.dev.properties
-          if [ -n "$TRAKT_CLIENT_ID" ] && [ -n "$TRAKT_CLIENT_SECRET" ]; then
-            printf 'TRAKT_CLIENT_ID=%s\nTRAKT_CLIENT_SECRET=%s\n' "$TRAKT_CLIENT_ID" "$TRAKT_CLIENT_SECRET" >> local.properties
-            echo "Trakt keys added"
-          else
-            echo "No Trakt keys set; Trakt login stays off"
-          fi
 
       - name: Prepare CI signing config
         run: |
