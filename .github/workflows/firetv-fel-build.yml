@@ -1,0 +1,71 @@
+name: Fire TV Cube FEL Build
+
+# Builds a test APK of the firetv-cube-fel branch: Nuvio Arc with native Dolby Vision
+# Profile 7 FEL for the Fire TV Cube 3 (Fire TV AV Magisk module). It installs next to
+# the normal Nuvio Arc as a separate app (package suffix .fel).
+on:
+  push:
+    branches: [firetv-cube-fel]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firetv-fel-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Fire TV FEL APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      # Keep the same debug signing key between runs, so a new build installs over the previous one.
+      - name: Restore debug signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: firetv-fel-debug-keystore
+
+      - name: Prepare local properties
+        run: |
+          touch local.properties local.dev.properties
+
+      - name: Prepare CI signing config
+        run: |
+          keytool -genkeypair -keystore "$RUNNER_TEMP/ci-debug.jks" -storepass android \
+            -alias androiddebugkey -keypass android -dname "CN=Android Debug,O=Android,C=US" \
+            -keyalg RSA -keysize 2048 -validity 10000
+          {
+            echo "NUVIO_RELEASE_STORE_FILE=$RUNNER_TEMP/ci-debug.jks"
+            echo "NUVIO_RELEASE_KEY_ALIAS=androiddebugkey"
+            echo "NUVIO_RELEASE_KEY_PASSWORD=android"
+            echo "NUVIO_RELEASE_STORE_PASSWORD=android"
+          } >> "$GITHUB_ENV"
+
+      - name: Build fullDebug APK
+        run: ./gradlew :app:assembleFullDebug -PnuvioAppIdSuffix=.fel --stacktrace
+
+      - name: Check the FEL libraries are in the ARMv7 APK
+        run: |
+          apk=app/build/outputs/apk/full/debug/app-full-armeabi-v7a-debug.apk
+          unzip -l "$apk" | grep -E "libnuviofiretvfel.so|libdvfelplay.so"
+
+      - name: Upload ARMv7 APK (Fire TV Cube 3)
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuvio-arc-firetv-fel-armeabi-v7a
+          path: app/build/outputs/apk/full/debug/app-full-armeabi-v7a-debug.apk
+          if-no-files-found: error
+          retention-days: 30
